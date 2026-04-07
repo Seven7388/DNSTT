@@ -162,6 +162,66 @@ func handle(local *net.TCPConn, sess *smux.Session, conv uint32) error {
 	return err
 }
 
+type RandomPortUDPConn struct {
+	recvCh chan packet
+	closed chan struct{}
+}
+type packet struct {
+	buf  []byte
+	addr net.Addr
+	err  error
+}
+func NewRandomPortUDPConn() *RandomPortUDPConn {
+	return &RandomPortUDPConn{
+		recvCh: make(chan packet, 1024),
+		closed: make(chan struct{}),
+	}
+}
+func (c *RandomPortUDPConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+	conn, err := net.ListenUDP("udp", nil)
+	if err != nil { return 0, err }
+	n, err = conn.WriteTo(p, addr)
+	if err != nil {
+		conn.Close()
+		return n, err
+	}
+	go func() {
+		defer conn.Close()
+		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+		var buf [4096]byte
+		n, raddr, err := conn.ReadFrom(buf[:])
+		if err == nil {
+			b := make([]byte, n)
+			copy(b, buf[:n])
+			select {
+			case c.recvCh <- packet{b, raddr, nil}:
+			case <-c.closed:
+			}
+		}
+	}()
+	return n, nil
+}
+func (c *RandomPortUDPConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
+	select {
+	case pkt := <-c.recvCh:
+		if pkt.err != nil { return 0, nil, pkt.err }
+		n = copy(p, pkt.buf)
+		return n, pkt.addr, nil
+	case <-c.closed:
+		return 0, nil, net.ErrClosed
+	}
+}
+func (c *RandomPortUDPConn) Close() error {
+	close(c.closed)
+	return nil
+}
+func (c *RandomPortUDPConn) LocalAddr() net.Addr {
+	return &net.UDPAddr{IP: net.IPv4zero, Port: 0}
+}
+func (c *RandomPortUDPConn) SetDeadline(t time.Time) error { return nil }
+func (c *RandomPortUDPConn) SetReadDeadline(t time.Time) error { return nil }
+func (c *RandomPortUDPConn) SetWriteDeadline(t time.Time) error { return nil }
+
 func run(pubkey []byte, domain dns.Name, localAddr *net.TCPAddr, remoteAddr net.Addr, pconn net.PacketConn) error {
 	defer pconn.Close()
 
@@ -243,6 +303,7 @@ func main() {
 	var pubkeyFilename string
 	var pubkeyString string
 	var udpAddr string
+	var btAddr string
 	var utlsDistribution string
 
 	flag.Usage = func() {
@@ -282,6 +343,7 @@ Known TLS fingerprints for -utls are:
 	flag.StringVar(&pubkeyString, "pubkey", "", fmt.Sprintf("server public key (%d hex digits)", noise.KeyLen*2))
 	flag.StringVar(&pubkeyFilename, "pubkey-file", "", "read server public key from file")
 	flag.StringVar(&udpAddr, "udp", "", "address of UDP DNS resolver")
+	flag.StringVar(&btAddr, "bt", "", "bind to local address (optional, e.g., 0.0.0.0:0)")
 	flag.StringVar(&utlsDistribution, "utls",
 		"4*random,3*Firefox_120,1*Firefox_105,3*Chrome_120,1*Chrome_102,1*iOS_14,1*iOS_13",
 		"choose TLS fingerprint from weighted distribution")
@@ -384,7 +446,16 @@ Known TLS fingerprints for -utls are:
 			if err != nil {
 				return nil, nil, err
 			}
-			pconn, err := net.ListenUDP("udp", nil)
+			var pconn net.PacketConn
+			if btAddr != "" {
+				laddr, err := net.ResolveUDPAddr("udp", btAddr)
+				if err != nil {
+					return nil, nil, err
+				}
+				pconn, err = net.ListenUDP("udp", laddr)
+			} else {
+				pconn = NewRandomPortUDPConn()
+			}
 			return addr, pconn, err
 		}},
 	} {
