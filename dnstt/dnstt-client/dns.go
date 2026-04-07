@@ -81,18 +81,20 @@ func NewDNSPacketConn(transport net.PacketConn, addr net.Addr, domain dns.Name) 
 		pollChan:        make(chan struct{}, pollLimit),
 		QueuePacketConn: turbotunnel.NewQueuePacketConn(clientID, 0),
 	}
-	go func() {
-		err := c.recvLoop(transport)
-		if err != nil {
-			log.Printf("recvLoop: %v", err)
-		}
-	}()
-	go func() {
-		err := c.sendLoop(transport, addr)
-		if err != nil {
-			log.Printf("sendLoop: %v", err)
-		}
-	}()
+	for i := 0; i < 100; i++ {
+		go func() {
+			err := c.recvLoop(transport)
+			if err != nil {
+				log.Printf("recvLoop: %v", err)
+			}
+		}()
+		go func() {
+			err := c.sendLoop(transport, addr)
+			if err != nil {
+				log.Printf("sendLoop: %v", err)
+			}
+		}()
+	}
 	return c
 }
 

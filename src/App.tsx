@@ -35,6 +35,7 @@ export default function App() {
             <li>Increased KCP Window Sizes (128 → 1024)</li>
             <li>Disabled Nagle's Algorithm (NoDelay enabled)</li>
             <li>Expanded smux buffers for higher bandwidth</li>
+            <li><strong>Added H-Workers (100x concurrent UDP read/write workers)</strong></li>
             <li>Added automated build workflow (.github/workflows/build.yml)</li>
           </ul>
         </div>

@@ -802,19 +802,25 @@ func run(privkey []byte, domain dns.Name, upstream string, dnsConn net.PacketCon
 		}
 	}()
 
-	ch := make(chan *record, 100)
+	ch := make(chan *record, 1024)
 	defer close(ch)
 
-	// We could run multiple copies of sendLoop; that would allow more time
-	// for each response to collect downstream data before being evicted by
-	// another response that needs to be sent.
-	go func() {
-		err := sendLoop(dnsConn, ttConn, ch, maxEncodedPayload)
-		if err != nil {
-			log.Printf("sendLoop: %v", err)
-		}
-	}()
-
+	for i := 0; i < 100; i++ {
+		go func() {
+			err := sendLoop(dnsConn, ttConn, ch, maxEncodedPayload)
+			if err != nil {
+				log.Printf("sendLoop: %v", err)
+			}
+		}()
+	}
+	for i := 0; i < 99; i++ {
+		go func() {
+			err := recvLoop(domain, dnsConn, ttConn, ch)
+			if err != nil {
+				log.Printf("recvLoop: %v", err)
+			}
+		}()
+	}
 	return recvLoop(domain, dnsConn, ttConn, ch)
 }
 
