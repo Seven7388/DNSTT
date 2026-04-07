@@ -1,0 +1,45 @@
+name: Build High-Speed dnstt
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux, windows, darwin]
+        arch: [amd64, arm64]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+        
+    - name: Build dnstt-client
+      env:
+        GOOS: ${{ matrix.os }}
+        GOARCH: ${{ matrix.arch }}
+      run: |
+        cd dnstt/dnstt-client
+        go build -trimpath -ldflags="-s -w" -o ../../dnstt-client-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.os == 'windows' && '.exe' || '' }}
+        
+    - name: Build dnstt-server
+      env:
+        GOOS: ${{ matrix.os }}
+        GOARCH: ${{ matrix.arch }}
+      run: |
+        cd dnstt/dnstt-server
+        go build -trimpath -ldflags="-s -w" -o ../../dnstt-server-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.os == 'windows' && '.exe' || '' }}
+        
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dnstt-binaries-${{ matrix.os }}-${{ matrix.arch }}
+        path: |
+          dnstt-client-*
+          dnstt-server-*
