@@ -246,7 +246,8 @@ func acceptStreams(conn *kcp.UDPSession, privkey []byte, upstream string) error 
 	smuxConfig := smux.DefaultConfig()
 	smuxConfig.Version = 2
 	smuxConfig.KeepAliveTimeout = idleTimeout
-	smuxConfig.MaxStreamBuffer = 1 * 1024 * 1024 // default is 65536
+	smuxConfig.MaxStreamBuffer = 4 * 1024 * 1024
+	smuxConfig.MaxReceiveBuffer = 16 * 1024 * 1024
 	sess, err := smux.Server(rw, smuxConfig)
 	if err != nil {
 		return err
@@ -291,13 +292,8 @@ func acceptSessions(ln *kcp.Listener, privkey []byte, mtu int, upstream string) 
 		conn.SetStreamMode(true)
 		// Disable the dynamic congestion window (limit only by the
 		// maximum of local and remote static windows).
-		conn.SetNoDelay(
-			0, // default nodelay
-			0, // default interval
-			0, // default resend
-			1, // nc=1 => congestion window off
-		)
-		conn.SetWindowSize(turbotunnel.QueueSize/2, turbotunnel.QueueSize/2)
+		conn.SetNoDelay(1, 10, 2, 1)
+		conn.SetWindowSize(4096, 4096)
 		if rc := conn.SetMtu(mtu); !rc {
 			panic(rc)
 		}
