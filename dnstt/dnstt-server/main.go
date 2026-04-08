@@ -292,8 +292,8 @@ func acceptSessions(ln *kcp.Listener, privkey []byte, mtu int, upstream string) 
 		conn.SetStreamMode(true)
 		// Disable the dynamic congestion window (limit only by the
 		// maximum of local and remote static windows).
-		conn.SetNoDelay(1, 10, 2, 1)
-		conn.SetWindowSize(4096, 4096)
+		conn.SetNoDelay(1, 10, 2, 0)
+		conn.SetWindowSize(1024, 1024)
 		if rc := conn.SetMtu(mtu); !rc {
 			panic(rc)
 		}
