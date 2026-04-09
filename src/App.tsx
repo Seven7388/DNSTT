@@ -35,11 +35,24 @@ export default function App() {
             <li>Increased KCP Window Sizes (128 → 1024)</li>
             <li>Disabled Nagle's Algorithm (NoDelay enabled)</li>
             <li>Expanded smux buffers for higher bandwidth</li>
-            <li><strong>Added H-Workers (100x concurrent UDP read/write workers)</strong></li>
-            <li><strong>UDP Port Randomization:</strong> Client uses a new socket/port per query to avoid UDP association blocking.</li>
+            <li><strong>Added H-Workers (100x concurrent UDP read/write workers)</strong>: Use the <code className="bg-gray-200 px-1 rounded text-gray-800">-workers 100</code> flag on the server.</li>
+            <li><strong>Persistent Socket Pool (Client)</strong>: Replaced one-shot sockets with a pool of 100 persistent sockets to eliminate syscall overhead.</li>
+            <li><strong>UDP Port Randomization:</strong> Client rotates through the socket pool for every query to bypass UDP association blocking.</li>
             <li><strong>Optional Bind (-bt):</strong> Added <code className="bg-gray-200 px-1 rounded text-gray-800">-bt</code> flag to optionally bind to a specific local port.</li>
             <li>Added automated build workflow (.github/workflows/build.yml)</li>
           </ul>
+        </div>
+
+        <div className="text-sm text-gray-500 bg-blue-50 p-4 rounded-lg border border-blue-100 text-left mt-6">
+          <h4 className="font-medium text-blue-900 mb-2">🚀 Pro Speed Tips (VPS Kernel Tuning)</h4>
+          <p className="text-xs mb-2">Run these on your VPS to handle high-speed UDP:</p>
+          <pre className="bg-gray-900 text-gray-100 p-3 rounded-md overflow-x-auto text-[10px] font-mono">
+            echo "net.core.default_qdisc=fq" &gt;&gt; /etc/sysctl.conf{"\n"}
+            echo "net.ipv4.tcp_congestion_control=bbr" &gt;&gt; /etc/sysctl.conf{"\n"}
+            echo "net.core.rmem_max=16777216" &gt;&gt; /etc/sysctl.conf{"\n"}
+            echo "net.core.wmem_max=16777216" &gt;&gt; /etc/sysctl.conf{"\n"}
+            sysctl -p
+          </pre>
         </div>
 
         <div className="text-sm text-gray-500 bg-gray-50 p-4 rounded-lg border border-gray-100 text-left mt-6">
@@ -48,10 +61,10 @@ export default function App() {
           <div className="space-y-4">
             <div>
               <h5 className="font-medium text-gray-900 mb-1">1. Server Setup</h5>
-              <p className="mb-2 text-xs">Generate keys and start the server:</p>
+              <p className="mb-2 text-xs">Generate keys and start the server with 100 H-Workers:</p>
               <pre className="bg-gray-900 text-gray-100 p-3 rounded-md overflow-x-auto text-xs font-mono">
                 ./dnstt-server -gen-key -privkey-file server.key -pubkey-file server.pub{"\n"}
-                ./dnstt-server -udp :5300 -privkey-file server.key t.yourdomain.com 127.0.0.1:8000
+                ./dnstt-server -udp :5300 -workers 100 -privkey-file server.key t.yourdomain.com 127.0.0.1:8000
               </pre>
             </div>
             
@@ -68,6 +81,13 @@ export default function App() {
               <p className="mb-2 text-xs">If you need to bind to a specific local port, use the optional <code className="bg-gray-200 px-1 rounded text-gray-800">-bt</code> flag:</p>
               <pre className="bg-gray-900 text-gray-100 p-3 rounded-md overflow-x-auto text-xs font-mono">
                 ./dnstt-client -udp 1.1.1.1:53 -bt 0.0.0.0:53000 -pubkey-file server.pub t.yourdomain.com 127.0.0.1:7000
+              </pre>
+            </div>
+            <div>
+              <h5 className="font-medium text-gray-900 mb-1">4. SSH Optimization</h5>
+              <p className="mb-2 text-xs">Use these flags for faster SSH over the tunnel:</p>
+              <pre className="bg-gray-900 text-gray-100 p-3 rounded-md overflow-x-auto text-xs font-mono">
+                ssh -o Ciphers=chacha20-poly1305@openssh.com -o Compression=yes -p 7000 root@127.0.0.1
               </pre>
             </div>
           </div>

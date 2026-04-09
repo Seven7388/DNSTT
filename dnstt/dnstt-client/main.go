@@ -162,65 +162,104 @@ func handle(local *net.TCPConn, sess *smux.Session, conv uint32) error {
 	return err
 }
 
-type RandomPortUDPConn struct {
+type SocketPoolUDPConn struct {
+	conns  []*net.UDPConn
 	recvCh chan packet
 	closed chan struct{}
+	mu     sync.Mutex
+	index  int
 }
-type packet struct {
-	buf  []byte
-	addr net.Addr
-	err  error
-}
-func NewRandomPortUDPConn() *RandomPortUDPConn {
-	return &RandomPortUDPConn{
-		recvCh: make(chan packet, 1024),
+
+func NewSocketPoolUDPConn(size int) *SocketPoolUDPConn {
+	c := &SocketPoolUDPConn{
+		conns:  make([]*net.UDPConn, 0, size),
+		recvCh: make(chan packet, 2048),
 		closed: make(chan struct{}),
 	}
-}
-func (c *RandomPortUDPConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
-	conn, err := net.ListenUDP("udp", nil)
-	if err != nil { return 0, err }
-	n, err = conn.WriteTo(p, addr)
-	if err != nil {
-		conn.Close()
-		return n, err
-	}
-	go func() {
-		defer conn.Close()
-		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-		var buf [4096]byte
-		n, raddr, err := conn.ReadFrom(buf[:])
-		if err == nil {
-			b := make([]byte, n)
-			copy(b, buf[:n])
-			select {
-			case c.recvCh <- packet{b, raddr, nil}:
-			case <-c.closed:
-			}
+	for i := 0; i < size; i++ {
+		conn, err := net.ListenUDP("udp", nil)
+		if err != nil {
+			continue
 		}
-	}()
-	return n, nil
+		c.conns = append(c.conns, conn)
+		go func(conn *net.UDPConn) {
+			var buf [4096]byte
+			for {
+				select {
+				case <-c.closed:
+					return
+				default:
+					conn.SetReadDeadline(time.Now().Add(1 * time.Second))
+					n, raddr, err := conn.ReadFrom(buf[:])
+					if err == nil {
+						b := make([]byte, n)
+						copy(b, buf[:n])
+						select {
+						case c.recvCh <- packet{b, raddr, nil}:
+						case <-c.closed:
+							return
+						default:
+						}
+					}
+				}
+			}
+		}(conn)
+	}
+	return c
 }
-func (c *RandomPortUDPConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
+
+func (c *SocketPoolUDPConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+	c.mu.Lock()
+	if len(c.conns) == 0 {
+		c.mu.Unlock()
+		return 0, fmt.Errorf("no sockets available in pool")
+	}
+	conn := c.conns[c.index]
+	c.index = (c.index + 1) % len(c.conns)
+	c.mu.Unlock()
+	return conn.WriteTo(p, addr)
+}
+
+func (c *SocketPoolUDPConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	select {
 	case pkt := <-c.recvCh:
-		if pkt.err != nil { return 0, nil, pkt.err }
+		if pkt.err != nil {
+			return 0, nil, pkt.err
+		}
 		n = copy(p, pkt.buf)
 		return n, pkt.addr, nil
 	case <-c.closed:
 		return 0, nil, net.ErrClosed
 	}
 }
-func (c *RandomPortUDPConn) Close() error {
-	close(c.closed)
+
+func (c *SocketPoolUDPConn) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	select {
+	case <-c.closed:
+		return nil
+	default:
+		close(c.closed)
+		for _, conn := range c.conns {
+			conn.Close()
+		}
+	}
 	return nil
 }
-func (c *RandomPortUDPConn) LocalAddr() net.Addr {
+
+func (c *SocketPoolUDPConn) LocalAddr() net.Addr {
 	return &net.UDPAddr{IP: net.IPv4zero, Port: 0}
 }
-func (c *RandomPortUDPConn) SetDeadline(t time.Time) error { return nil }
-func (c *RandomPortUDPConn) SetReadDeadline(t time.Time) error { return nil }
-func (c *RandomPortUDPConn) SetWriteDeadline(t time.Time) error { return nil }
+func (c *SocketPoolUDPConn) SetDeadline(t time.Time) error      { return nil }
+func (c *SocketPoolUDPConn) SetReadDeadline(t time.Time) error  { return nil }
+func (c *SocketPoolUDPConn) SetWriteDeadline(t time.Time) error { return nil }
+
+type packet struct {
+	buf  []byte
+	addr net.Addr
+	err  error
+}
 
 func run(pubkey []byte, domain dns.Name, localAddr *net.TCPAddr, remoteAddr net.Addr, pconn net.PacketConn) error {
 	defer pconn.Close()
@@ -450,7 +489,7 @@ Known TLS fingerprints for -utls are:
 				}
 				pconn, err = net.ListenUDP("udp", laddr)
 			} else {
-				pconn = NewRandomPortUDPConn()
+				pconn = NewSocketPoolUDPConn(100)
 			}
 			return addr, pconn, err
 		}},
