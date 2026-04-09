@@ -761,8 +761,10 @@ func computeMaxEncodedPayload(limit int) int {
 	return low
 }
 
-func run(privkey []byte, domain dns.Name, upstream string, dnsConn net.PacketConn) error {
-	defer dnsConn.Close()
+func run(privkey []byte, domain dns.Name, upstream string, dnsConns []net.PacketConn) error {
+	for _, conn := range dnsConns {
+		defer conn.Close()
+	}
 
 	log.Printf("pubkey %x", noise.PubkeyFromPrivkey(privkey))
 
@@ -801,23 +803,25 @@ func run(privkey []byte, domain dns.Name, upstream string, dnsConn net.PacketCon
 	ch := make(chan *record, 1024)
 	defer close(ch)
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < len(dnsConns); i++ {
+		conn := dnsConns[i]
 		go func() {
-			err := sendLoop(dnsConn, ttConn, ch, maxEncodedPayload)
+			err := sendLoop(conn, ttConn, ch, maxEncodedPayload)
 			if err != nil {
 				log.Printf("sendLoop: %v", err)
 			}
 		}()
 	}
-	for i := 0; i < 99; i++ {
+	for i := 0; i < len(dnsConns)-1; i++ {
+		conn := dnsConns[i]
 		go func() {
-			err := recvLoop(domain, dnsConn, ttConn, ch)
+			err := recvLoop(domain, conn, ttConn, ch)
 			if err != nil {
 				log.Printf("recvLoop: %v", err)
 			}
 		}()
 	}
-	return recvLoop(domain, dnsConn, ttConn, ch)
+	return recvLoop(domain, dnsConns[len(dnsConns)-1], ttConn, ch)
 }
 
 func main() {
@@ -826,6 +830,7 @@ func main() {
 	var privkeyString string
 	var pubkeyFilename string
 	var udpAddr string
+	var workers int
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), `Usage:
@@ -845,7 +850,12 @@ Example:
 	flag.StringVar(&privkeyFilename, "privkey-file", "", "read server private key from file (with -gen-key, write to file)")
 	flag.StringVar(&pubkeyFilename, "pubkey-file", "", "with -gen-key, write server public key to file")
 	flag.StringVar(&udpAddr, "udp", "", "UDP address to listen on (required)")
+	flag.IntVar(&workers, "workers", 100, "number of concurrent UDP workers (uses SO_REUSEPORT)")
 	flag.Parse()
+
+	if workers < 1 {
+		workers = 1
+	}
 
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
@@ -904,10 +914,21 @@ Example:
 			fmt.Fprintf(os.Stderr, "the -udp option is required\n")
 			os.Exit(1)
 		}
-		dnsConn, err := net.ListenPacket("udp", udpAddr)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "opening UDP listener: %v\n", err)
-			os.Exit(1)
+		
+		var dnsConns []net.PacketConn
+		for i := 0; i < workers; i++ {
+			var conn net.PacketConn
+			var err error
+			if workers > 1 {
+				conn, err = listenUDPReusePort(udpAddr)
+			} else {
+				conn, err = net.ListenPacket("udp", udpAddr)
+			}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "opening UDP listener: %v\n", err)
+				os.Exit(1)
+			}
+			dnsConns = append(dnsConns, conn)
 		}
 
 		if pubkeyFilename != "" {
@@ -945,7 +966,7 @@ Example:
 			}
 		}
 
-		err = run(privkey, domain, upstream, dnsConn)
+		err = run(privkey, domain, upstream, dnsConns)
 		if err != nil {
 			log.Fatal(err)
 		}
