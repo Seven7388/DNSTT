@@ -36,6 +36,7 @@ export default function App() {
             <li>Disabled Nagle's Algorithm (NoDelay enabled)</li>
             <li>Expanded smux buffers for higher bandwidth</li>
             <li><strong>Added H-Workers (100x concurrent UDP read/write workers)</strong>: Use the <code className="bg-gray-200 px-1 rounded text-gray-800">-workers 100</code> flag on the server.</li>
+            <li><strong>Slipstream Mode (-slipstream)</strong>: A new aggressive mode that doubles window sizes (2048), slashes retransmission intervals (5ms), and expands buffers (128MB) for extreme throughput.</li>
             <li><strong>Persistent Socket Pool (Client)</strong>: Replaced one-shot sockets with a pool of 100 persistent sockets to eliminate syscall overhead.</li>
             <li><strong>Deep Buffer Optimization</strong>: Increased internal queue sizes (4k → 64k) and smux buffers (16MB → 64MB) for extreme bandwidth.</li>
             <li><strong>Low Latency Tuning</strong>: Reduced server response delay (1s → 200ms) for snappier browsing.</li>
@@ -63,18 +64,18 @@ export default function App() {
           <div className="space-y-4">
             <div>
               <h5 className="font-medium text-gray-900 mb-1">1. Server Setup</h5>
-              <p className="mb-2 text-xs">Generate keys and start the server with 100 H-Workers:</p>
+              <p className="mb-2 text-xs">Generate keys and start the server with Slipstream mode:</p>
               <pre className="bg-gray-900 text-gray-100 p-3 rounded-md overflow-x-auto text-xs font-mono">
                 ./dnstt-server -gen-key -privkey-file server.key -pubkey-file server.pub{"\n"}
-                ./dnstt-server -udp :5300 -workers 100 -privkey-file server.key t.yourdomain.com 127.0.0.1:8000
+                ./dnstt-server -udp :5300 -slipstream -workers 256 -privkey-file server.key t.yourdomain.com 127.0.0.1:8000
               </pre>
             </div>
             
             <div>
-              <h5 className="font-medium text-gray-900 mb-1">2. Client Setup (Randomized Ports - Default)</h5>
-              <p className="mb-2 text-xs">Run the client. It will automatically use a new random UDP source port for every query to bypass UDP association blocking:</p>
+              <h5 className="font-medium text-gray-900 mb-1">2. Client Setup (Slipstream Mode)</h5>
+              <p className="mb-2 text-xs">Run the client with Slipstream mode for maximum speed:</p>
               <pre className="bg-gray-900 text-gray-100 p-3 rounded-md overflow-x-auto text-xs font-mono">
-                ./dnstt-client -udp 1.1.1.1:53 -pubkey-file server.pub t.yourdomain.com 127.0.0.1:7000
+                ./dnstt-client -udp 1.1.1.1:53 -slipstream -pubkey-file server.pub t.yourdomain.com 127.0.0.1:7000
               </pre>
             </div>
 

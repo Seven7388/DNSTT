@@ -59,6 +59,9 @@ If you need to bind to a specific local port instead of randomizing, use the `-b
 *   `-privkey-file <file>`: Path to the private key file (Required for running the server).
 *   `-pubkey-file <file>`: Path to the public key file (Used with `-gen-key`).
 *   `-udp <addr>`: Listen for UDP DNS queries on this address (e.g., `:5300`).
+*   `-workers <n>`: **[NEW]** Number of concurrent UDP workers (default 100). Uses `SO_REUSEPORT` for extreme scalability.
+*   `-slipstream`: **[NEW]** Enable aggressive optimizations (2048 window, 5ms interval, 128MB buffers).
+*   `-mtu <n>`: Maximum size of response UDP payloads (default 1232). Use `512` for Halotel.
 *   `-tcp <addr>`: Listen for TCP DNS queries on this address.
 *   `-doh <addr>`: Listen for DNS-over-HTTPS queries.
 *   `-dot <addr>`: Listen for DNS-over-TLS queries.
@@ -67,6 +70,7 @@ If you need to bind to a specific local port instead of randomizing, use the `-b
 *   `-pubkey <hex>`: The server's public key as a hex string.
 *   `-pubkey-file <file>`: Path to the server's public key file.
 *   `-udp <addr>`: Address of the UDP DNS resolver to use (e.g., `1.1.1.1:53` or `8.8.8.8:53`).
+*   `-slipstream`: **[NEW]** Enable aggressive optimizations and 10ms burst polling.
 *   `-bt <addr>`: **[NEW]** Bind to a specific local address/port (e.g., `0.0.0.0:53000`). If omitted, the client randomizes the source port per query.
 *   `-tcp <addr>`: Address of the TCP DNS resolver.
 *   `-doh <url>`: URL of the DNS-over-HTTPS resolver.

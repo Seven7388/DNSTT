@@ -96,6 +96,8 @@ var (
 	// On 2020-04-19, the Quad9 resolver was seen to have a UDP payload size
 	// of 1232. Cloudflare's was 1452, and Google's was 4096.
 	maxUDPPayload = 1280 - 40 - 8
+
+	slipstream bool
 )
 
 // base32Encoding is a base32 encoding without padding.
@@ -246,8 +248,13 @@ func acceptStreams(conn *kcp.UDPSession, privkey []byte, upstream string) error 
 	smuxConfig := smux.DefaultConfig()
 	smuxConfig.Version = 2
 	smuxConfig.KeepAliveTimeout = idleTimeout
-	smuxConfig.MaxStreamBuffer = 16 * 1024 * 1024
-	smuxConfig.MaxReceiveBuffer = 64 * 1024 * 1024
+	if slipstream {
+		smuxConfig.MaxStreamBuffer = 32 * 1024 * 1024
+		smuxConfig.MaxReceiveBuffer = 128 * 1024 * 1024
+	} else {
+		smuxConfig.MaxStreamBuffer = 16 * 1024 * 1024
+		smuxConfig.MaxReceiveBuffer = 64 * 1024 * 1024
+	}
 	sess, err := smux.Server(rw, smuxConfig)
 	if err != nil {
 		return err
@@ -292,8 +299,13 @@ func acceptSessions(ln *kcp.Listener, privkey []byte, mtu int, upstream string) 
 		conn.SetStreamMode(true)
 		// Disable the dynamic congestion window (limit only by the
 		// maximum of local and remote static windows).
-		conn.SetNoDelay(1, 10, 2, 0)
-		conn.SetWindowSize(1024, 1024)
+		if slipstream {
+			conn.SetNoDelay(1, 5, 2, 0)
+			conn.SetWindowSize(2048, 2048)
+		} else {
+			conn.SetNoDelay(1, 10, 2, 0)
+			conn.SetWindowSize(1024, 1024)
+		}
 		if rc := conn.SetMtu(mtu); !rc {
 			panic(rc)
 		}
@@ -851,7 +863,15 @@ Example:
 	flag.StringVar(&pubkeyFilename, "pubkey-file", "", "with -gen-key, write server public key to file")
 	flag.StringVar(&udpAddr, "udp", "", "UDP address to listen on (required)")
 	flag.IntVar(&workers, "workers", 100, "number of concurrent UDP workers (uses SO_REUSEPORT)")
+	flag.BoolVar(&slipstream, "slipstream", false, "enable slipstream aggressive optimizations")
 	flag.Parse()
+
+	if slipstream {
+		// Aggressive Slipstream defaults
+		if workers == 100 {
+			workers = 256
+		}
+	}
 
 	if workers < 1 {
 		workers = 1

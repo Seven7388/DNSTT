@@ -64,6 +64,8 @@ import (
 // smux streams will be closed after this much time without receiving data.
 const idleTimeout = 2 * time.Minute
 
+var slipstream bool
+
 // dnsNameCapacity returns the number of bytes remaining for encoded data after
 // including domain in a DNS name.
 func dnsNameCapacity(domain dns.Name) int {
@@ -292,8 +294,13 @@ func run(pubkey []byte, domain dns.Name, localAddr *net.TCPAddr, remoteAddr net.
 	conn.SetStreamMode(true)
 	// Disable the dynamic congestion window (limit only by the maximum of
 	// local and remote static windows).
-	conn.SetNoDelay(1, 10, 2, 0)
-	conn.SetWindowSize(1024, 1024)
+	if slipstream {
+		conn.SetNoDelay(1, 5, 2, 0)
+		conn.SetWindowSize(2048, 2048)
+	} else {
+		conn.SetNoDelay(1, 10, 2, 0)
+		conn.SetWindowSize(1024, 1024)
+	}
 	if rc := conn.SetMtu(mtu); !rc {
 		panic(rc)
 	}
@@ -308,13 +315,37 @@ func run(pubkey []byte, domain dns.Name, localAddr *net.TCPAddr, remoteAddr net.
 	smuxConfig := smux.DefaultConfig()
 	smuxConfig.Version = 2
 	smuxConfig.KeepAliveTimeout = idleTimeout
-	smuxConfig.MaxStreamBuffer = 16 * 1024 * 1024
-	smuxConfig.MaxReceiveBuffer = 64 * 1024 * 1024
+	if slipstream {
+		smuxConfig.MaxStreamBuffer = 32 * 1024 * 1024
+		smuxConfig.MaxReceiveBuffer = 128 * 1024 * 1024
+	} else {
+		smuxConfig.MaxStreamBuffer = 16 * 1024 * 1024
+		smuxConfig.MaxReceiveBuffer = 64 * 1024 * 1024
+	}
 	sess, err := smux.Client(rw, smuxConfig)
 	if err != nil {
 		return fmt.Errorf("opening smux session: %v", err)
 	}
 	defer sess.Close()
+
+	// Start a background "Burst Poller" to pull data faster on small MTU networks
+	go func() {
+		delay := 50 * time.Millisecond
+		if slipstream {
+			delay = 10 * time.Millisecond
+		}
+		ticker := time.NewTicker(delay)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				// Send a keepalive ping to the server to trigger a response
+				sess.Ping()
+			case <-sess.CloseChan():
+				return
+			}
+		}
+	}()
 
 	for {
 		local, err := ln.Accept()
@@ -384,7 +415,15 @@ Known TLS fingerprints for -utls are:
 	flag.StringVar(&utlsDistribution, "utls",
 		"4*random,3*Firefox_120,1*Firefox_105,3*Chrome_120,1*Chrome_102,1*iOS_14,1*iOS_13",
 		"choose TLS fingerprint from weighted distribution")
+	flag.BoolVar(&slipstream, "slipstream", false, "enable slipstream aggressive optimizations")
 	flag.Parse()
+
+	if slipstream {
+		// Aggressive Slipstream defaults
+		if utlsClientHelloID == nil {
+			utlsClientHelloID = &utls.HelloChrome_Auto
+		}
+	}
 
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
