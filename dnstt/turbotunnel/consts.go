@@ -8,7 +8,7 @@ import "errors"
 
 // QueueSize is the size of send and receive queues in QueuePacketConn and
 // RemoteMap.
-const QueueSize = 4096
+const QueueSize = 65536
 
 var errClosedPacketConn = errors.New("operation on closed connection")
 var errNotImplemented = errors.New("not implemented")

@@ -37,6 +37,8 @@ export default function App() {
             <li>Expanded smux buffers for higher bandwidth</li>
             <li><strong>Added H-Workers (100x concurrent UDP read/write workers)</strong>: Use the <code className="bg-gray-200 px-1 rounded text-gray-800">-workers 100</code> flag on the server.</li>
             <li><strong>Persistent Socket Pool (Client)</strong>: Replaced one-shot sockets with a pool of 100 persistent sockets to eliminate syscall overhead.</li>
+            <li><strong>Deep Buffer Optimization</strong>: Increased internal queue sizes (4k → 64k) and smux buffers (16MB → 64MB) for extreme bandwidth.</li>
+            <li><strong>Low Latency Tuning</strong>: Reduced server response delay (1s → 200ms) for snappier browsing.</li>
             <li><strong>UDP Port Randomization:</strong> Client rotates through the socket pool for every query to bypass UDP association blocking.</li>
             <li><strong>Optional Bind (-bt):</strong> Added <code className="bg-gray-200 px-1 rounded text-gray-800">-bt</code> flag to optionally bind to a specific local port.</li>
             <li>Added automated build workflow (.github/workflows/build.yml)</li>

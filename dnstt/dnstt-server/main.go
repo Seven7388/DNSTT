@@ -75,7 +75,7 @@ const (
 	// This number should be less than 2 seconds, which in 2019 was reported
 	// to be the query timeout of the Quad9 DoH server.
 	// https://dnsencryption.info/imc19-doe.html Section 4.2, Finding 2.4
-	maxResponseDelay = 1 * time.Second
+	maxResponseDelay = 200 * time.Millisecond
 
 	// How long to wait for a TCP connection to upstream to be established.
 	upstreamDialTimeout = 30 * time.Second
@@ -246,8 +246,8 @@ func acceptStreams(conn *kcp.UDPSession, privkey []byte, upstream string) error 
 	smuxConfig := smux.DefaultConfig()
 	smuxConfig.Version = 2
 	smuxConfig.KeepAliveTimeout = idleTimeout
-	smuxConfig.MaxStreamBuffer = 4 * 1024 * 1024
-	smuxConfig.MaxReceiveBuffer = 16 * 1024 * 1024
+	smuxConfig.MaxStreamBuffer = 16 * 1024 * 1024
+	smuxConfig.MaxReceiveBuffer = 64 * 1024 * 1024
 	sess, err := smux.Server(rw, smuxConfig)
 	if err != nil {
 		return err
@@ -929,6 +929,13 @@ Example:
 				os.Exit(1)
 			}
 			dnsConns = append(dnsConns, conn)
+		}
+
+		for _, conn := range dnsConns {
+			if udpConn, ok := conn.(*net.UDPConn); ok {
+				udpConn.SetReadBuffer(16 * 1024 * 1024)
+				udpConn.SetWriteBuffer(16 * 1024 * 1024)
+			}
 		}
 
 		if pubkeyFilename != "" {

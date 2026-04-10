@@ -181,6 +181,8 @@ func NewSocketPoolUDPConn(size int) *SocketPoolUDPConn {
 		if err != nil {
 			continue
 		}
+		conn.SetReadBuffer(16 * 1024 * 1024)
+		conn.SetWriteBuffer(16 * 1024 * 1024)
 		c.conns = append(c.conns, conn)
 		go func(conn *net.UDPConn) {
 			var buf [4096]byte
@@ -306,8 +308,8 @@ func run(pubkey []byte, domain dns.Name, localAddr *net.TCPAddr, remoteAddr net.
 	smuxConfig := smux.DefaultConfig()
 	smuxConfig.Version = 2
 	smuxConfig.KeepAliveTimeout = idleTimeout
-	smuxConfig.MaxStreamBuffer = 4 * 1024 * 1024
-	smuxConfig.MaxReceiveBuffer = 16 * 1024 * 1024
+	smuxConfig.MaxStreamBuffer = 16 * 1024 * 1024
+	smuxConfig.MaxReceiveBuffer = 64 * 1024 * 1024
 	sess, err := smux.Client(rw, smuxConfig)
 	if err != nil {
 		return fmt.Errorf("opening smux session: %v", err)
