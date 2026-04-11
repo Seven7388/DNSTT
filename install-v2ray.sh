@@ -15,7 +15,15 @@ echo -e "${BLUE}Starting High-Speed V2Ray Installation...${NC}"
 
 # 1. Install V2Ray using the official script
 echo -e "${GREEN}Downloading and installing V2Ray...${NC}"
-bash <(curl -L https://raw.githubusercontent.com/v2fly/f2ray-core/master/release/install-release.sh)
+INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/v2fly/v2ray-core/master/release/install-release.sh"
+
+# Check if the URL is valid before running
+if ! curl -sfL "$INSTALL_SCRIPT_URL" > /tmp/v2ray_install.sh; then
+    echo -e "${RED}Error: Could not download V2Ray installation script. Please check your internet connection.${NC}"
+    exit 1
+fi
+
+bash /tmp/v2ray_install.sh
 
 # 2. Generate a UUID if one doesn't exist
 UUID=$(cat /proc/sys/kernel/random/uuid)
