@@ -78,6 +78,35 @@ If you need to bind to a specific local port instead of randomizing, use the `-b
 
 ---
 
+## 🛡️ V2Ray + SlowDNS (Extreme Bypass)
+
+For highly restricted networks, use V2Ray (VLESS) over the DNS tunnel.
+
+### 1. V2Ray Server (VPS)
+You can install and configure V2Ray automatically using the provided script in this repository:
+\`\`\`bash
+# Run this on your VPS
+chmod +x install-v2ray.sh
+./install-v2ray.sh
+\`\`\`
+This script installs V2Ray and sets up a high-speed VLESS inbound on port `10086` with `encryption: none`.
+
+### 2. Start dnstt-server
+Point the tunnel to the V2Ray inbound:
+\`\`\`bash
+./dnstt-server -udp :53 -slipstream -workers 256 -privkey-file server.key t.yourdomain.com 127.0.0.1:10086
+\`\`\`
+
+### 3. Start dnstt-client
+\`\`\`bash
+./dnstt-client -udp 1.1.1.1:53 -slipstream -pubkey-file server.pub t.yourdomain.com 127.0.0.1:7000
+\`\`\`
+
+### 4. V2Ray Client
+Set your V2Ray client to connect to `127.0.0.1:7000` using the VLESS protocol.
+
+---
+
 ## 💡 Architecture Notes
 *   **t.yourdomain.com**: This is your DNS zone. You must configure an NS record for `t.yourdomain.com` pointing to the IP address of the server running `dnstt-server`.
 *   **127.0.0.1:8000**: This is the destination your server forwards traffic to (e.g., an SSH daemon, OpenVPN, or a proxy server).

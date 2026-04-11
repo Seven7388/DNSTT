@@ -42,6 +42,8 @@ export default function App() {
             <li><strong>Low Latency Tuning</strong>: Reduced server response delay (1s → 200ms) for snappier browsing.</li>
             <li><strong>UDP Port Randomization:</strong> Client rotates through the socket pool for every query to bypass UDP association blocking.</li>
             <li><strong>Optional Bind (-bt):</strong> Added <code className="bg-gray-200 px-1 rounded text-gray-800">-bt</code> flag to optionally bind to a specific local port.</li>
+            <li><strong>V2Ray Optimized:</strong> Pre-configured templates for VLESS-over-DNS to eliminate double-encryption overhead.</li>
+            <li><strong>Auto-Installer:</strong> Added <code className="bg-gray-200 px-1 rounded text-gray-800">install-v2ray.sh</code> to the root for one-click VPS setup.</li>
             <li>Added automated build workflow (.github/workflows/build.yml)</li>
           </ul>
         </div>
@@ -92,6 +94,37 @@ export default function App() {
               <pre className="bg-gray-900 text-gray-100 p-3 rounded-md overflow-x-auto text-xs font-mono">
                 ssh -o Ciphers=chacha20-poly1305@openssh.com -o Compression=yes -p 7000 root@127.0.0.1
               </pre>
+            </div>
+
+            <div className="pt-4 border-t border-gray-100">
+              <h5 className="font-bold text-blue-600 mb-2 flex items-center gap-2">
+                🛡️ V2Ray + SlowDNS Integration
+              </h5>
+              <p className="text-xs text-gray-600 mb-3">
+                For high-restriction bypass, run V2Ray through the tunnel. Use <strong>VLESS</strong> with <strong>encryption: none</strong> to maximize speed.
+              </p>
+              
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase">One-Click VPS Setup</p>
+                  <p className="text-[10px] text-gray-500 mb-1 italic">Run this on your VPS to install & configure V2Ray automatically (replace USER/REPO):</p>
+                  <pre className="bg-gray-900 text-yellow-400 p-2 rounded text-[10px] font-mono overflow-x-auto">
+                    bash &lt;(curl -L https://raw.githubusercontent.com/USER/REPO/main/install-v2ray.sh)
+                  </pre>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase">V2Ray Server (Upstream: 10086)</p>
+                  <pre className="bg-gray-800 text-blue-300 p-2 rounded text-[10px] font-mono overflow-x-auto">
+                    {"{"} "protocol": "vless", "settings": {"{"} "clients": [{"{"} "id": "uuid" {"}"}], "decryption": "none" {"}"} {"}"}
+                  </pre>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase">dnstt-server command</p>
+                  <pre className="bg-gray-900 text-green-400 p-2 rounded text-[10px] font-mono">
+                    ./dnstt-server -udp :53 -slipstream -workers 256 ... 127.0.0.1:10086
+                  </pre>
+                </div>
+              </div>
             </div>
           </div>
         </div>
