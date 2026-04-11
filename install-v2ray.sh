@@ -13,9 +13,9 @@ NC='\033[0m'
 
 echo -e "${BLUE}Starting High-Speed V2Ray Installation...${NC}"
 
-# 1. Install V2Ray using the official script
-echo -e "${GREEN}Downloading and installing V2Ray...${NC}"
-INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/v2fly/v2ray-core/master/release/install-release.sh"
+# 1. Install V2Ray using the official FHS script
+echo -e "${GREEN}Downloading and installing V2Ray (FHS version)...${NC}"
+INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh"
 
 # Check if the URL is valid before running
 if ! curl -sfL "$INSTALL_SCRIPT_URL" > /tmp/v2ray_install.sh; then
@@ -23,6 +23,7 @@ if ! curl -sfL "$INSTALL_SCRIPT_URL" > /tmp/v2ray_install.sh; then
     exit 1
 fi
 
+# Run the FHS installer
 bash /tmp/v2ray_install.sh
 
 # 2. Generate a UUID if one doesn't exist
@@ -31,6 +32,7 @@ echo -e "${GREEN}Generated UUID: ${BLUE}$UUID${NC}"
 
 # 3. Create the optimized VLESS configuration (No Encryption for dnstt)
 echo -e "${GREEN}Configuring V2Ray for SlowDNS (Port 10086)...${NC}"
+mkdir -p /usr/local/etc/v2ray
 cat <<EOF > /usr/local/etc/v2ray/config.json
 {
   "log": {
